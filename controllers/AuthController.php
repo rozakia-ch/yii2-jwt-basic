@@ -5,34 +5,12 @@ namespace app\controllers;
 use Yii;
 use app\models\UserRefreshTokens;
 use app\models\Users;
-use yii\filters\Cors;
 use Exception;
 use yii\web\HttpException;
 
-class AuthController extends \yii\web\Controller
+class AuthController extends BaseController
 {
-    public function behaviors()
-    {
-        $behaviors = parent::behaviors();
-        $behaviors['corsFilter'] = [
-            'class' => Cors::class,
-            'cors' => [
-                'Origin' => ['*'],
-                'Access-Control-Request-Method'    => ['*'],
-                'Access-Control-Allow-Headers' =>  ['*']
-            ],
-        ];
-        $behaviors['authenticator'] = [
-            'class' => \sizeg\jwt\JwtHttpBearerAuth::class,
-            'except' => [
-                'login',
-                'refresh-token',
-                'options',
-            ],
-        ];
 
-        return $behaviors;
-    }
     private function generateJwt(Users $user)
     {
         $jwt = Yii::$app->jwt;
@@ -72,14 +50,14 @@ class AuthController extends \yii\web\Controller
         }
 
         // Send the refresh-token to the user in a HttpOnly cookie that Javascript can never read and that's limited by path
-        Yii::$app->response->cookies->add(new \yii\web\Cookie([
-            'name' => 'refresh-token',
-            'value' => $refreshToken,
-            'httpOnly' => true,
-            'sameSite' => 'none',
-            'secure' => true,
-            'path' => '/v1/auth/refresh-token',  //endpoint URI for renewing the JWT token using this refresh-token, or deleting refresh-token
-        ]));
+        // Yii::$app->response->cookies->add(new \yii\web\Cookie([
+        //     'name' => 'refresh-token',
+        //     'value' => $refreshToken,
+        //     'httpOnly' => true,
+        //     'sameSite' => 'none',
+        //     'secure' => true,
+        //     'path' => '/v1/auth/refresh-token',  //endpoint URI for renewing the JWT token using this refresh-token, or deleting refresh-token
+        // ]));
 
         return $userRefreshToken;
     }
@@ -99,17 +77,16 @@ class AuthController extends \yii\web\Controller
                 throw new HttpException(401, 'Check username & password');
 
             $token = $this->generateJwt($user);
-            $this->generateRefreshToken($user);
+            $refreshToken = $this->generateRefreshToken($user);
             // $user = Users::find()->asArray()->with("contact")->all();
             $userData = Users::find()->asArray()
-                ->with(["userRefreshTokens", "role"])
+                ->with("role")
                 ->where(['id' => $user->id])
                 ->one();
-
-            return [
-                'user' => $userData,
-                'token' => (string) $token,
-            ];
+            $data['user'] = $userData;
+            $data['token'] = (string) $token;
+            $data['refreshToken'] = $refreshToken->urf_token;
+            return  $data;
         } catch (Exception $e) {
             throw new HttpException(500, $e);
         }
