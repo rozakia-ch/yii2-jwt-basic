@@ -23,6 +23,7 @@ abstract class BaseController extends Controller
     $behaviors['authenticator'] = [
       'class' => JwtHttpBearerAuth::class,
       'optional' => [
+        'register',
         'login',
         'refresh-token',
         // 'options',

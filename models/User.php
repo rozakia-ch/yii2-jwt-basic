@@ -124,7 +124,9 @@ class User extends \yii\db\ActiveRecord implements \yii\web\IdentityInterface
         $refreshToken = Yii::$app->security->generateRandomString(200);
 
         // TODO: Don't always regenerate - you could reuse existing one if user already has one with same IP and user agent
-        $userRefreshToken = new UserRefreshToken();
+        $userRefreshToken = UserRefreshToken::findOne(['urf_userID' => $id]);
+        if (!$userRefreshToken)
+            $userRefreshToken = new UserRefreshToken();
         $userRefreshToken->urf_userID = $id;
         $userRefreshToken->urf_token = $refreshToken;
         $userRefreshToken->urf_ip = Yii::$app->request->userIP;
