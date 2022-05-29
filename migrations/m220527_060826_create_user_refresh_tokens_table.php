@@ -18,7 +18,8 @@ class m220527_060826_create_user_refresh_tokens_table extends Migration
             'urf_token' => $this->string(1000)->notNull(),
             'urf_ip' => $this->string(50)->notNull(),
             'urf_user_agent' => $this->string(1000)->notNull(),
-            'urf_created' => $this->datetime()->notNull(),
+            'created_at' => $this->timestamp()->defaultExpression('NOW()'),
+            'updated_at' => $this->timestamp()->defaultExpression('CURRENT_TIMESTAMP')->append('ON UPDATE NOW()'),
         ]);
         // creates index for column `urf_userID`
         $this->createIndex(

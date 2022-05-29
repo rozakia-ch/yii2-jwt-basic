@@ -2,136 +2,128 @@
 
 namespace app\controllers;
 
+use app\models\LoginForm;
+use app\models\User;
+use app\models\UserRefreshToken;
 use Yii;
-use app\models\UserRefreshTokens;
-use app\models\Users;
-use Exception;
+
 use yii\web\HttpException;
 
+/**
+ * Default controller for the `v1` module
+ */
 class AuthController extends BaseController
 {
+  // untuk verbs yg diperlukan misal get/put/patch/dsb
+  protected function verbs()
+  {
+    return [
+      'register' => ['POST'],
+      'login' => ['POST'],
+      'data' => ['GET'],
+    ];
+  }
+  //fungsi untuk login
+  public function actionLogin()
+  {
+    $model = new LoginForm();
+    if ($model->load(Yii::$app->getRequest()->getBodyParams(), '') && $model->login()) {
+      $userData = User::find()->asArray()
+        ->with("role")
+        ->where(['id' => Yii::$app->user->identity->id])
+        ->one();
+      $response = [
+        'success' => true,
+        'message' => 'login berhasil!',
+        'user' => $userData,
+        'token' => User::generateJwt(Yii::$app->user->identity->id),
+        'refreshToken' => User::generateRefreshToken(Yii::$app->user->identity->id)->urf_token,
+      ];
+      return $response;
+    } else {
+      $model->validate();
+      return [
+        'success' => false,
+        'data' => $model
+      ];
+    }
+  }
+  //fungsi untuk register
+  public function actionRegister()
+  {
+    $mUser = new User();
 
-    private function generateJwt(Users $user)
-    {
-        $jwt = Yii::$app->jwt;
-        $signer = $jwt->getSigner('HS256');
-        $key = $jwt->getKey();
-        $time = time();
+    if (!Yii::$app->request->post('password') || !Yii::$app->request->post('email') || !Yii::$app->request->post('username'))
+      throw new HttpException(400, 'Check collumn required');
 
-        $jwtParams = Yii::$app->params['jwt'];
+    $username = Yii::$app->request->post('username');
+    $password = Yii::$app->request->post('password');
+    $email = Yii::$app->request->post('email');
 
-        return $jwt->getBuilder()
-            ->issuedBy($jwtParams['issuer'])
-            ->permittedFor($jwtParams['audience'])
-            ->identifiedBy($jwtParams['id'], true)
-            ->issuedAt($time)
-            ->expiresAt($time + $jwtParams['expire'])
-            ->withClaim('uid', $user->id)
-            ->getToken($signer, $key);
+    if (User::findOne(['username' => $username]))
+      throw new HttpException(500, 'Username is already registered');
+
+    if (User::findOne(['email' => $email]))
+      throw new HttpException(500, 'Email is already registered');
+    $mUser->name = Yii::$app->request->post('name');
+    $mUser->username = $username;
+    $mUser->email = $email;
+    $mUser->password = $hash = Yii::$app->getSecurity()->generatePasswordHash($password);
+    $mUser->role_id = Yii::$app->request->post('roleID');
+    $mUser->auth_key = Yii::$app->security->generateRandomString();
+    $mUser->save();
+    return $mUser;
+  }
+  // fungsi untuk refresh-token
+  public function actionRefreshToken()
+  {
+    // $refreshToken = Yii::$app->request->cookies->getValue('refresh-token', false);
+
+    $refreshToken = Yii::$app->request->headers['refresh-token'];
+    if (!$refreshToken) {
+      return new \yii\web\UnauthorizedHttpException('No refresh token found.');
     }
 
-    /**
-     * @throws yii\base\Exception
-     */
-    private function generateRefreshToken(Users $user, Users $impersonator = null): UserRefreshTokens
-    {
-        $refreshToken = Yii::$app->security->generateRandomString(200);
+    $userRefreshToken = UserRefreshToken::findOne(['urf_token' => $refreshToken]);
 
-        // TODO: Don't always regenerate - you could reuse existing one if user already has one with same IP and user agent
-        $userRefreshToken = new UserRefreshTokens([
-            'urf_userID' => $user->id,
-            'urf_token' => $refreshToken,
-            'urf_ip' => Yii::$app->request->userIP,
-            'urf_user_agent' => Yii::$app->request->userAgent,
-            'urf_created' => gmdate('Y-m-d H:i:s'),
-        ]);
-        if (!$userRefreshToken->save()) {
-            throw new \yii\web\ServerErrorHttpException('Failed to save the refresh token: ' . $userRefreshToken->getErrorSummary(true));
-        }
+    if (Yii::$app->request->getMethod() == 'POST') {
+      // Getting new JWT after it has expired
+      if (!$userRefreshToken) {
+        return new \yii\web\UnauthorizedHttpException('The refresh token no longer exists.');
+      }
 
-        // Send the refresh-token to the user in a HttpOnly cookie that Javascript can never read and that's limited by path
-        // Yii::$app->response->cookies->add(new \yii\web\Cookie([
-        //     'name' => 'refresh-token',
-        //     'value' => $refreshToken,
-        //     'httpOnly' => true,
-        //     'sameSite' => 'none',
-        //     'secure' => true,
-        //     'path' => '/v1/auth/refresh-token',  //endpoint URI for renewing the JWT token using this refresh-token, or deleting refresh-token
-        // ]));
+      $user = User::find()  //adapt this to your needs
+        ->where(['id' => $userRefreshToken->urf_userID])
+        // ->andWhere(['not', ['usr_status' => 'inactive']])
+        ->one();
+      if (!$user) {
+        $userRefreshToken->delete();
+        return new \yii\web\UnauthorizedHttpException('The user is inactive.');
+      }
 
-        return $userRefreshToken;
+      $token = User::generateJwt($user->id);
+
+      return [
+        'status' => 'ok',
+        'token' => (string) $token,
+      ];
+    } elseif (Yii::$app->request->getMethod() == 'DELETE') {
+      // Logging out
+      if ($userRefreshToken && !$userRefreshToken->delete()) {
+        return new \yii\web\ServerErrorHttpException('Failed to delete the refresh token.');
+      }
+
+      return ['status' => 'ok'];
+    } else {
+      return new \yii\web\UnauthorizedHttpException('The user is inactive.');
     }
-    public function actionLogin()
-    {
-        if (!Yii::$app->request->post('password') || !Yii::$app->request->post('username'))
-            throw new yii\web\HttpException(401, 'Check input username & password');
-
-        $username = Yii::$app->request->post('username');
-        $password = Yii::$app->request->post('password');
-        try {
-            $user = Users::findOne(['username' => $username]);
-            if (!$user)
-                throw new HttpException(401, 'Check username & password');
-
-            if (!password_verify($password, $user->password))
-                throw new HttpException(401, 'Check username & password');
-
-            $token = $this->generateJwt($user);
-            $refreshToken = $this->generateRefreshToken($user);
-            // $user = Users::find()->asArray()->with("contact")->all();
-            $userData = Users::find()->asArray()
-                ->with("role")
-                ->where(['id' => $user->id])
-                ->one();
-            $data['user'] = $userData;
-            $data['token'] = (string) $token;
-            $data['refreshToken'] = $refreshToken->urf_token;
-            return  $data;
-        } catch (Exception $e) {
-            throw new HttpException(500, $e);
-        }
-    }
-    public function actionRefreshToken()
-    {
-        // $refreshToken = Yii::$app->request->cookies->getValue('refresh-token', false);
-
-        $refreshToken = Yii::$app->request->headers['refresh-token'];
-        if (!$refreshToken) {
-            return new \yii\web\UnauthorizedHttpException('No refresh token found.');
-        }
-
-        $userRefreshToken = UserRefreshTokens::findOne(['urf_token' => $refreshToken]);
-
-        if (Yii::$app->request->getMethod() == 'POST') {
-            // Getting new JWT after it has expired
-            if (!$userRefreshToken) {
-                return new \yii\web\UnauthorizedHttpException('The refresh token no longer exists.');
-            }
-
-            $user = Users::find()  //adapt this to your needs
-                ->where(['id' => $userRefreshToken->urf_userID])
-                // ->andWhere(['not', ['usr_status' => 'inactive']])
-                ->one();
-            if (!$user) {
-                $userRefreshToken->delete();
-                return new \yii\web\UnauthorizedHttpException('The user is inactive.');
-            }
-
-            $token = $this->generateJwt($user);
-
-            return [
-                'status' => 'ok',
-                'token' => (string) $token,
-            ];
-        } elseif (Yii::$app->request->getMethod() == 'DELETE') {
-            // Logging out
-            if ($userRefreshToken && !$userRefreshToken->delete()) {
-                return new \yii\web\ServerErrorHttpException('Failed to delete the refresh token.');
-            }
-
-            return ['status' => 'ok'];
-        } else {
-            return new \yii\web\UnauthorizedHttpException('The user is inactive.');
-        }
-    }
+  }
+  //hanya untuk tes token
+  public function actionData()
+  {
+    return [
+      'data' => User::find()->all(),
+      'success' => true,
+    ];
+  }
 }

@@ -3,7 +3,7 @@
 namespace app\controllers;
 
 use sizeg\jwt\JwtHttpBearerAuth;
-use yii\base\Controller;
+use yii\rest\Controller;
 use yii\filters\Cors;
 
 abstract class BaseController extends Controller
@@ -15,16 +15,17 @@ abstract class BaseController extends Controller
       'class' => Cors::class,
       'cors' => [
         'Origin' => ['*'],
-        'Access-Control-Request-Method'    => ['*'],
-        'Access-Control-Allow-Headers' =>  ['*']
+        'Access-Control-Request-Method' => ['GET', 'POST', 'PUT', 'OPTIONS'],
+        'Access-Control-Request-Headers' => ['*'],
+        'Access-Control-Allow-Credentials' => true,
       ],
     ];
     $behaviors['authenticator'] = [
       'class' => JwtHttpBearerAuth::class,
-      'except' => [
+      'optional' => [
         'login',
         'refresh-token',
-        'options',
+        // 'options',
       ],
     ];
 

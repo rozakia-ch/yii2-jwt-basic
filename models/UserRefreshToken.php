@@ -12,11 +12,12 @@ use Yii;
  * @property string $urf_token
  * @property string $urf_ip
  * @property string $urf_user_agent
- * @property string $urf_created
+ * @property string $created_at
+ * @property string $updated_at
  *
  * @property Users $urfUser
  */
-class UserRefreshTokens extends \yii\db\ActiveRecord
+class UserRefreshToken extends \yii\db\ActiveRecord
 {
     /**
      * {@inheritdoc}
@@ -32,12 +33,12 @@ class UserRefreshTokens extends \yii\db\ActiveRecord
     public function rules()
     {
         return [
-            [['urf_userID', 'urf_token', 'urf_ip', 'urf_user_agent', 'urf_created'], 'required'],
+            [['urf_userID', 'urf_token', 'urf_ip', 'urf_user_agent'], 'required'],
             [['urf_userID'], 'integer'],
-            [['urf_created'], 'safe'],
+            [['created_at', 'updated_at'], 'safe'],
             [['urf_token', 'urf_user_agent'], 'string', 'max' => 1000],
             [['urf_ip'], 'string', 'max' => 50],
-            [['urf_userID'], 'exist', 'skipOnError' => true, 'targetClass' => Users::class, 'targetAttribute' => ['urf_userID' => 'id']],
+            [['urf_userID'], 'exist', 'skipOnError' => true, 'targetClass' => User::class, 'targetAttribute' => ['urf_userID' => 'id']],
         ];
     }
 
@@ -52,7 +53,8 @@ class UserRefreshTokens extends \yii\db\ActiveRecord
             'urf_token' => 'Urf Token',
             'urf_ip' => 'Urf Ip',
             'urf_user_agent' => 'Urf User Agent',
-            'urf_created' => 'Urf Created',
+            'created_at' => 'Created At',
+            'updated_at' => 'Updated At',
         ];
     }
 
@@ -61,8 +63,8 @@ class UserRefreshTokens extends \yii\db\ActiveRecord
      *
      * @return \yii\db\ActiveQuery
      */
-    public function getUser()
+    public function getUrfUser()
     {
-        return $this->hasOne(Users::class, ['id' => 'urf_userID']);
+        return $this->hasOne(User::class, ['id' => 'urf_userID']);
     }
 }

@@ -19,8 +19,9 @@ class m220525_023048_create_users_table extends Migration
             'email' => $this->string()->notNull()->unique(),
             'password' => $this->string()->notNull(),
             'role_id' => $this->integer()->notNull(),
-            'created_at' => $this->dateTime(),
-            'updated_at' => $this->dateTime()
+            'auth_key' => $this->string(),
+            'created_at' => $this->timestamp()->defaultExpression('NOW()'),
+            'updated_at' => $this->timestamp()->defaultExpression('CURRENT_TIMESTAMP')->append('ON UPDATE NOW()'),
         ]);
         // creates index for column `user_id`
         $this->createIndex(

@@ -12,7 +12,7 @@ use Yii;
  *
  * @property Users[] $users
  */
-class Roles extends \yii\db\ActiveRecord
+class Role extends \yii\db\ActiveRecord
 {
     /**
      * {@inheritdoc}
@@ -51,6 +51,6 @@ class Roles extends \yii\db\ActiveRecord
      */
     public function getUsers()
     {
-        return $this->hasMany(Users::class, ['role_id' => 'id']);
+        return $this->hasMany(Users::className(), ['role_id' => 'id']);
     }
 }
