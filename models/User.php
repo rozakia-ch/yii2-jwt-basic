@@ -280,4 +280,13 @@ class User extends \yii\db\ActiveRecord implements \yii\web\IdentityInterface
     {
         $this->password_reset_token = null;
     }
+    public function afterSave($isInsert, $changedOldAttributes)
+    {
+        // Purge the user tokens when the password is changed
+        if (array_key_exists('usr_password', $changedOldAttributes)) {
+            UserRefreshToken::deleteAll(['urf_userID' => $this->id]);
+        }
+
+        return parent::afterSave($isInsert, $changedOldAttributes);
+    }
 }
