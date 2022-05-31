@@ -68,7 +68,7 @@ class AuthController extends BaseController
     $mUser->name = Yii::$app->request->post('name');
     $mUser->username = $username;
     $mUser->email = $email;
-    $mUser->password = $hash = Yii::$app->getSecurity()->generatePasswordHash($password);
+    $mUser->password = Yii::$app->getSecurity()->generatePasswordHash($password);
     $mUser->role_id = Yii::$app->request->post('roleID');
     $mUser->auth_key = Yii::$app->security->generateRandomString();
     $mUser->save();
